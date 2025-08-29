@@ -45,8 +45,25 @@
 import 'package:flutter/material.dart';
 import 'Database/database_helper.dart';
 import 'Model/tracking_history.dart';
+import 'history_detail.dart';
+import 'package:share_plus/share_plus.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  late Future<List<TrackingRecord>> _recordsFuture;
+  bool _selectionMode = false;
+  final Set<int> _selectedIds = <int>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _recordsFuture = DatabaseHelper().getRecords();
+  }
+
   String _formatDuration(Duration d) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     return "${twoDigits(d.inHours)}:${twoDigits(d.inMinutes % 60)}:${twoDigits(d.inSeconds % 60)}";
@@ -83,11 +100,23 @@ class HistoryScreen extends StatelessWidget {
           icon: Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('History', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(
+          _selectionMode ? "${_selectedIds.length} Selected" : 'History',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         actions: [
           TextButton(
-            onPressed: () {},
-            child: Text("Select", style: TextStyle(color: Colors.white)),
+            onPressed: () {
+              setState(() {
+                if (_selectionMode) {
+                  _selectionMode = false;
+                  _selectedIds.clear();
+                } else {
+                  _selectionMode = true;
+                }
+              });
+            },
+            child: Text(_selectionMode ? "Cancel" : "Select", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -100,7 +129,7 @@ class HistoryScreen extends StatelessWidget {
           ),
         ),
         child: FutureBuilder<List<TrackingRecord>>(
-          future: DatabaseHelper().getRecords(),
+          future: _recordsFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done)
               return Center(child: CircularProgressIndicator());
@@ -108,7 +137,9 @@ class HistoryScreen extends StatelessWidget {
               return Center(child: Text("No history found.", style: TextStyle(color: Colors.white)));
 
             final records = snapshot.data!;
-            return ListView.builder(
+            return Stack(
+              children: [
+                ListView.builder(
               padding: EdgeInsets.all(16),
               itemCount: records.length,
               itemBuilder: (context, index) {
@@ -116,7 +147,34 @@ class HistoryScreen extends StatelessWidget {
                 final date = r.timestamp is DateTime
                     ? r.timestamp
                     : DateTime.tryParse(r.timestamp.toString()) ?? DateTime.now();
-                return Container(
+                final bool isSelected = r.id != null && _selectedIds.contains(r.id);
+                return GestureDetector(
+                  onTap: () async {
+                    if (_selectionMode) {
+                      setState(() {
+                        if (r.id != null) {
+                          if (isSelected) {
+                            _selectedIds.remove(r.id);
+                          } else {
+                            _selectedIds.add(r.id!);
+                          }
+                        }
+                      });
+                      return;
+                    }
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => HistoryDetailScreen(record: r),
+                      ),
+                    );
+                    if (result == 'deleted') {
+                      setState(() {
+                        _recordsFuture = DatabaseHelper().getRecords();
+                      });
+                    }
+                  },
+                  child: Container(
                   margin: EdgeInsets.only(bottom: 24),
                   child: Column(
                     children: [
@@ -162,10 +220,32 @@ class HistoryScreen extends StatelessWidget {
                               ],
                             ),
                             SizedBox(width: 8),
-                            CircleAvatar(
-                              backgroundColor: Colors.white,
-                              child: Icon(Icons.arrow_forward, color: Color(0xff68DAE4)),
-                            ),
+                            _selectionMode
+                                ? Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Color(0xff68DAE4), width: 2),
+                                      color: Colors.white,
+                                    ),
+                                    child: Center(
+                                      child: isSelected
+                                          ? Container(
+                                              width: 12,
+                                              height: 12,
+                                              decoration: BoxDecoration(
+                                                color: Color(0xff68DAE4),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            )
+                                          : SizedBox.shrink(),
+                                    ),
+                                  )
+                                : CircleAvatar(
+                                    backgroundColor: Colors.white,
+                                    child: Icon(Icons.arrow_forward, color: Color(0xff68DAE4)),
+                                  ),
                           ],
                         ),
                       ),
@@ -245,9 +325,148 @@ class HistoryScreen extends StatelessWidget {
                         ),
                       ),
                     ],
+                  )
                   ),
                 );
               },
+            ),
+                if (_selectionMode)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.9),
+                        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, -2))],
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _selectedIds.isEmpty
+                                  ? null
+                                  : () async {
+                                      final confirmed = await showModalBottomSheet<bool>(
+                                        context: context,
+                                        backgroundColor: Colors.white,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                                        ),
+                                        builder: (ctx) {
+                                          return Padding(
+                                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                const Text(
+                                                  'Delete record',
+                                                  style: TextStyle(
+                                                    color: Colors.black,
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 20,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                const Text(
+                                                  'Are you really want to delete this record?',
+                                                  style: TextStyle(color: Colors.black54, fontSize: 14),
+                                                ),
+                                                const SizedBox(height: 20),
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: OutlinedButton(
+                                                        onPressed: () => Navigator.pop(ctx, false),
+                                                        style: OutlinedButton.styleFrom(
+                                                          side: const BorderSide(color: Color(0x33000000)),
+                                                          foregroundColor: Colors.black,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                                        ),
+                                                        child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w700)),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: ElevatedButton(
+                                                        onPressed: () => Navigator.pop(ctx, true),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: const Color(0xff68DAE4),
+                                                          foregroundColor: Colors.black,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                                        ),
+                                                        child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w700)),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      );
+                                      if (confirmed == true) {
+                                        final ids = _selectedIds.toList();
+                                        for (final id in ids) {
+                                          await DatabaseHelper().deleteRecord(id);
+                                        }
+                                        setState(() {
+                                          _selectedIds.clear();
+                                          _recordsFuture = DatabaseHelper().getRecords();
+                                        });
+                                      }
+                                    },
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: Color(0x33FFFFFF)),
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: Text('Delete', style: TextStyle(fontWeight: FontWeight.w700)),
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: _selectedIds.isEmpty
+                                  ? null
+                                  : () async {
+                                      final selected = records.where((r) => r.id != null && _selectedIds.contains(r.id)).toList();
+                                      if (selected.isEmpty) return;
+                                      final buffer = StringBuffer();
+                                      for (final r in selected) {
+                                        final date = r.timestamp is DateTime
+                                            ? r.timestamp
+                                            : DateTime.tryParse(r.timestamp.toString()) ?? DateTime.now();
+                                        buffer
+                                          ..writeln('Trip on ${_monthName(date.month)} ${date.day.toString().padLeft(2,'0')}, ${date.year}')
+                                          ..writeln('Start: ${r.startAddress ?? '-'}')
+                                          ..writeln('Stop: ${r.stopAddress ?? '-'}')
+                                          ..writeln('Duration: ${_formatDuration(r.duration)}')
+                                          ..writeln('Distance: ${r.distance.toStringAsFixed(1)} km')
+                                          ..writeln('Avg: ${r.averageSpeed.toStringAsFixed(0)} km/h, Top: ${r.topSpeed.toStringAsFixed(0)} km/h')
+                                          ..writeln('');
+                                      }
+                                      await Share.share(buffer.toString());
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xff68DAE4),
+                                foregroundColor: Colors.black,
+                                padding: EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: Text('Share', style: TextStyle(fontWeight: FontWeight.w700)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             );
           },
         ),

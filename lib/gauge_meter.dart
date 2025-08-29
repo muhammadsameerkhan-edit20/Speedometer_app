@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speedo_meter/widgets/stat_row.dart';
@@ -127,6 +128,42 @@ class _SpeedometerScreenState extends State<SpeedometerScreen> {
     return "$h:$m:$s";
   }
 
+  Widget _digitsOnly(double speed) {
+    final String speedStr = speed.isFinite ? speed.clamp(0, 999).toStringAsFixed(0) : '0';
+    return Container(
+      alignment: Alignment.center,
+      color: Colors.transparent,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              speedStr,
+              style: const TextStyle(
+                fontFamily: 'Digital',
+                fontSize: 220,
+                color: Color(0xff68DAE4),
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'km/h',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 36,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // Helper method to get digit at specific position for odometer display
   String _getDigitAt(int position, double value) {
     // Convert to integer and pad with leading zeros to 5 digits
@@ -148,6 +185,40 @@ class _SpeedometerScreenState extends State<SpeedometerScreen> {
         _elapsedTime = tracker.elapsedTime;
       });
     });
+  }
+
+  void _rotateGauge(double delta) async {
+    setState(() {
+      _gaugeRotation += delta;
+    });
+    await _saveGaugePreference(_selectedGaugeType, _gaugeRotation);
+  }
+
+  Future<void> _openLandscape() async {
+    try {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: [SystemUiOverlay.bottom]);
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RotatedGaugeFullscreenPage(
+            speed: _speed,
+            gaugeType: _selectedGaugeType,
+            rotation: _gaugeRotation,
+            distance: _distance,
+          ),
+        ),
+      );
+    } finally {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: SystemUiOverlay.values);
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    }
   }
 
   Widget _buildGauge() {
@@ -418,6 +489,36 @@ class _SpeedometerScreenState extends State<SpeedometerScreen> {
                 ),
               ),
             ),
+            
+            // Landscape button near the gauge (launch fullscreen landscape)
+            Padding(
+              padding: const EdgeInsets.only(right: 22, top: 4),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _openLandscape,
+                  onLongPress: () => _rotateGauge(-_gaugeRotation), // long-press still resets stored rotation
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xff68DAE4), width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.screen_rotation, color: Color(0xff68DAE4)),
+                  ),
+                ),
+              ),
+            ),
 
             //SizedBox(height: 10),
             Padding(
@@ -483,11 +584,167 @@ class RotatedGaugeFullscreenPage extends StatefulWidget {
 class _RotatedGaugeFullscreenPageState
     extends State<RotatedGaugeFullscreenPage> {
   double currentRotation = 0.0;
+  final DistanceTracker _landscapeTracker = DistanceTracker();
 
   @override
   void initState() {
     super.initState();
     currentRotation = widget.rotation;
+  }
+
+  Widget _buildSmallTripPanel() {
+    return Container(
+      height: 200, // Fixed height to prevent scrolling
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xff141414),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xff68DAE4), width: 2),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Duration and Distance row
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Duration', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    const SizedBox(height: 2),
+                    Text(
+                      formatDuration(_landscapeTracker.elapsedTime),
+                      style: const TextStyle(
+                        color: Color(0xff68DAE4),
+                        fontSize: 18,
+                        fontFamily: 'Digital',
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(width: 1, height: 30, color: Colors.white24),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Distance', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_landscapeTracker.totalKm.toStringAsFixed(1)} km',
+                      style: const TextStyle(
+                        color: Color(0xff68DAE4),
+                        fontSize: 18,
+                        fontFamily: 'Digital',
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Avg Speed and Top Speed row
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Avg Speed', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_landscapeTracker.averageSpeed.toStringAsFixed(0)} km/h',
+                      style: const TextStyle(
+                        color: Color(0xff68DAE4),
+                        fontSize: 18,
+                        fontFamily: 'Digital',
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(width: 1, height: 30, color: Colors.white24),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Top Speed', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_landscapeTracker.topSpeed.toStringAsFixed(0)} km/h',
+                      style: const TextStyle(
+                        color: Color(0xff68DAE4),
+                        fontSize: 18,
+                        fontFamily: 'Digital',
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Tracking controls
+          Expanded(
+            child: TrackingControls(
+              onUpdate: () {
+                setState(() {});
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String formatDuration(Duration d) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final h = twoDigits(d.inHours);
+    final m = twoDigits(d.inMinutes.remainder(60));
+    final s = twoDigits(d.inSeconds.remainder(60));
+    return "$h:$m:$s";
+  }
+
+  Widget _digitsOnly(double speed) {
+    final String speedStr = speed.isFinite ? speed.clamp(0, 999).toStringAsFixed(0) : '0';
+    return Container(
+      alignment: Alignment.center,
+      color: Colors.transparent,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              speedStr,
+              style: const TextStyle(
+                fontFamily: 'Digital',
+                fontSize: 220,
+                color: Color(0xff68DAE4),
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'km/h',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 36,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildFullscreenGauge() {
@@ -539,8 +796,12 @@ class _RotatedGaugeFullscreenPageState
         );
         break;
 
-      case 3: // Enhanced Gauge
-        gaugeWidget = CustomSpeedometerGauge(speed: widget.speed);
+      case 3: // Enhanced Gauge (CustomSpeedometerGauge)
+        gaugeWidget = Container(
+          width: 400,
+          height: 400,
+          child: CustomSpeedometerGauge(speed: widget.speed),
+        );
         break;
 
       default:
@@ -574,57 +835,76 @@ class _RotatedGaugeFullscreenPageState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text('Landscape', style: TextStyle(color: Colors.white)),
+          bottom: const TabBar(
+            indicatorColor: Color(0xff68DAE4),
+            labelColor: Color(0xff68DAE4),
+            unselectedLabelColor: Colors.white70,
+            tabs: [
+              Tab(text: 'Analog'),
+              Tab(text: 'Digital'),
+            ],
+          ),
         ),
-        title: Text(
-          'Rotated Gauge View',
-          style: TextStyle(color: Colors.white),
+        body: ClipRect(
+        child: TabBarView(
+          children: [
+            // Analog with right-side small trip panel
+            ClipRect(
+              child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: SizedBox(
+                        width: 520,
+                        height: 320,
+                        child: Transform.rotate(
+                          angle: currentRotation,
+                          child: _buildFullscreenGauge(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(width: 200, child: _buildSmallTripPanel()),
+                ],
+              ),
+            )),
+            // Digital with right-side small trip panel (digits only)
+            ClipRect(
+              child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: SizedBox(
+                        width: 600,
+                        height: 320,
+                        child: _digitsOnly(widget.speed),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(width: 200, child: _buildSmallTripPanel()),
+                ],
+              ),
+            )),
+          ],
         ),
-        actions: [
-          IconButton(
-            onPressed: () {
-              setState(() {
-                currentRotation -= 0.1;
-              });
-            },
-            icon: Icon(Icons.rotate_left, color: Colors.white),
-            tooltip: 'Rotate Left',
-          ),
-          IconButton(
-            onPressed: () {
-              setState(() {
-                currentRotation = 0.0;
-              });
-            },
-            icon: Icon(Icons.refresh, color: Colors.white),
-            tooltip: 'Reset Rotation',
-          ),
-          IconButton(
-            onPressed: () {
-              setState(() {
-                currentRotation += 0.1;
-              });
-            },
-            icon: Icon(Icons.rotate_right, color: Colors.white),
-            tooltip: 'Rotate Right',
-          ),
-        ],
-      ),
-      body: Center(
-        child: RotatedBox(
-          quarterTurns: 1,
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            child: _buildFullscreenGauge(),
-          ),
         ),
       ),
     );

@@ -85,6 +85,11 @@ class DatabaseHelper {
     final db = await database;
     await db.delete('records');
   }
+
+  Future<void> deleteRecord(int id) async {
+    final db = await database;
+    await db.delete('records', where: 'id = ?', whereArgs: [id]);
+  }
   Future<double> getSpeedLimit() async {
     final db = await database;
     final result = await db.query(

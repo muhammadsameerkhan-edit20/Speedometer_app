@@ -47,6 +47,7 @@ dependencies:
   share_plus: ^11.0.0
   shared_preferences: ^2.2.2
   provider: ^6.1.1
+  # share_plus declared above
   url_launcher: ^6.1.10
 dev_dependencies:
   flutter_test:
