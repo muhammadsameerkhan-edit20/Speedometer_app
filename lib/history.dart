@@ -57,6 +57,13 @@ class HistoryScreen extends StatelessWidget {
     return "${_monthName(dt.month)} ${dt.day.toString().padLeft(2, '0')}, ${dt.year}";
   }
 
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final suffix = dt.hour >= 12 ? 'pm' : 'am';
+    return "$hour:$minute$suffix";
+  }
+
   String _monthName(int m) {
     const months = [
       "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -173,89 +180,69 @@ class HistoryScreen extends StatelessWidget {
                           ),
                         ),
                         padding: EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                        // child: Column(
-                        //   crossAxisAlignment: CrossAxisAlignment.start,
-                        //   children: [
-                        //     // Start
-                        //     Row(
-                        //       crossAxisAlignment: CrossAxisAlignment.start,
-                        //       children: [
-                        //         Column(
-                        //           children: [
-                        //             Icon(Icons.fiber_manual_record, color: Colors.red, size: 16),
-                        //             Container(
-                        //               width: 2,
-                        //               height: 24,
-                        //               color: Colors.white24,
-                        //             ),
-                        //           ],
-                        //         ),
-                        //         SizedBox(width: 8),
-                        //         Column(
-                        //           crossAxisAlignment: CrossAxisAlignment.start,
-                        //           children: [
-                        //             Row(
-                        //               children: [
-                        //                 Text("Start", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        //                 SizedBox(width: 8),
-                        //                 Text(
-                        //                   r.startTime ?? "--:--",
-                        //                   style: TextStyle(color: Colors.white70),
-                        //                 ),
-                        //               ],
-                        //             ),
-
-                        //             SizedBox(height: 2),
-                        //             Text(
-                        //               r.startAddress ?? "",
-                        //               style: TextStyle(color: Colors.white),
-                        //             ),
-                        //           ],
-
-
-                        //         ),
-                        //       ],
-                        //     ),
-
-
-                        //     SizedBox(height: 8),
-                        //     // Stop
-                        //     Row(
-
-                        //       crossAxisAlignment: CrossAxisAlignment.start,
-                        //       children: [
-
-
-                        //           children: [
-                        //             Icon(Icons.fiber_manual_record, color: Colors.green, size: 16),
-
-                        //           ],
-                        //         ),
-                        //         SizedBox(width: 8),
-                        //         Column(
-                        //           crossAxisAlignment: CrossAxisAlignment.start,
-                        //           children: [
-                        //             Row(
-                        //               children: [
-                        //                 Text("Stop", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        //                 SizedBox(width: 8),
-                        //                 Text(
-                        //                   r.stopTime ?? "--:--",
-                        //                   style: TextStyle(color: Colors.white70),
-                        //                 ),
-                        //               ],
-                        //             ),
-                        //             SizedBox(height: 2),
-                        //             Text(
-                        //               r.stopAddress ?? "",
-                        //               style: TextStyle(color: Colors.white),
-                        //             ),
-                        //           ],
-                        //         ),
-                        //       ],
-                        //     ),
-                        //   ],
-                        // ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Start row
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Column(
+                                  children: [
+                                    Icon(Icons.fiber_manual_record, color: Colors.red, size: 12),
+                                    Container(width: 2, height: 24, color: Colors.white24),
+                                  ],
+                                ),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text('Start', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                                          SizedBox(width: 10),
+                                          Text(_formatTime(date), style: TextStyle(color: Colors.white54)),
+                                        ],
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(r.startAddress ?? '-', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 8),
+                            // Stop row
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Column(
+                                  children: [
+                                    Icon(Icons.fiber_manual_record, color: Colors.green, size: 12),
+                                  ],
+                                ),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text('Stop', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                                          SizedBox(width: 10),
+                                          Text(_formatTime(date.add(r.duration)), style: TextStyle(color: Colors.white54)),
+                                        ],
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(r.stopAddress ?? '-', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

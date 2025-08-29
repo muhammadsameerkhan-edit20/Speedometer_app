@@ -54,7 +54,9 @@ class _BottomNavigationBarItemScreenState extends State<BottomNavigationBarItemS
                   Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsScreen()));
                 },
               ),
-            ), Container(
+            ),
+            SizedBox(width: 10),
+            Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(color: Color(0xff68DAE4), width: 1.5),

@@ -25,6 +25,7 @@ class _CurrentLocationMapState extends State<CurrentLocationMap>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // Observe app lifecycle
+    print("CurrentLocationMap initialized");
     _getCurrentLocation();
   }
 
@@ -44,9 +45,12 @@ class _CurrentLocationMapState extends State<CurrentLocationMap>
 
   Future<void> _getCurrentLocation() async {
     try {
+      print("Getting current location...");
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      print("Location service enabled: $serviceEnabled");
 
       if (!serviceEnabled) {
+        print("Location service disabled, showing dialog");
         // Show dialog to open location settings
         if (mounted) {
           await showDialog(
@@ -76,85 +80,109 @@ class _CurrentLocationMapState extends State<CurrentLocationMap>
         return;
       }
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      LocationPermission permission = await Geolocator.checkPermission();
+      print("Location permission: $permission");
+      
       if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        print("Requested permission: $permission");
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Location permission denied.")),
+            );
+          }
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Location permission denied.")),
+            const SnackBar(content: Text("Permission permanently denied.")),
           );
         }
         return;
       }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Permission permanently denied.")),
-        );
-      }
-      return;
-    }
 
           try {
-        final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 15),
-        );
-        if (mounted) {
-          setState(() {
-            _currentPosition = position;
-            _markers['currentLocation'] = Marker(
-              markerId: const MarkerId('currentLocation'),
-              position: LatLng(position.latitude, position.longitude),
-              infoWindow: const InfoWindow(title: 'You are here'),
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueAzure,
+            print("Attempting to get current position...");
+            final position = await Geolocator.getCurrentPosition(
+              desiredAccuracy: LocationAccuracy.high,
+              timeLimit: Duration(seconds: 20),
+            );
+            print("Position obtained: ${position.latitude}, ${position.longitude}");
+            
+            if (mounted) {
+              setState(() {
+                _currentPosition = position;
+                _markers['currentLocation'] = Marker(
+                  markerId: const MarkerId('currentLocation'),
+                  position: LatLng(position.latitude, position.longitude),
+                  infoWindow: const InfoWindow(title: 'You are here'),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueAzure,
+                  ),
+                );
+              });
+              await _getAddressFromLatLng(position);
+            }
+          } catch (e) {
+            print("Error getting current location: $e");
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("Error getting location: $e"),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          print("Error in location service: $e");
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Location service error: $e"),
+                backgroundColor: Colors.red,
               ),
             );
-          });
-          await _getAddressFromLatLng(position);
+          }
         }
-      } catch (e) {
-        print("Error getting current location: $e");
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Error getting location: $e"),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print("Error in location service: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Location service error: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   String? _currentAddress;
   Future<void> _getAddressFromLatLng(Position position) async {
     try {
+      print("Fetching address for: ${position.latitude}, ${position.longitude}");
       List<Placemark> placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
       );
 
       Placemark place = placemarks.first;
+      print("Placemark: $place");
 
       if (mounted) {
         setState(() {
-          _currentAddress =
-              " ${place.subLocality}, ${place.subAdministrativeArea}, ${place.administrativeArea}, ${place.country}";
+          // Create a cleaner address format
+          List<String> addressParts = [];
+          
+          if (place.subLocality?.isNotEmpty == true) {
+            addressParts.add(place.subLocality!);
+          }
+          if (place.locality?.isNotEmpty == true) {
+            addressParts.add(place.locality!);
+          }
+          if (place.administrativeArea?.isNotEmpty == true) {
+            addressParts.add(place.administrativeArea!);
+          }
+          if (place.country?.isNotEmpty == true) {
+            addressParts.add(place.country!);
+          }
+          
+          _currentAddress = addressParts.join(", ");
+          print("Formatted address: $_currentAddress");
         });
       }
     } catch (e) {
@@ -242,6 +270,15 @@ class _CurrentLocationMapState extends State<CurrentLocationMap>
                                 fontSize: 12,
                               ),
                             ),
+                            SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () => _getCurrentLocation(),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xff68DAE4),
+                                foregroundColor: Colors.black,
+                              ),
+                              child: Text("Retry"),
+                            ),
                           ],
                         ),
                       )
@@ -257,6 +294,10 @@ class _CurrentLocationMapState extends State<CurrentLocationMap>
                             zoom: 14,
                           ),
                           markers: _markers.values.toSet(),
+                          myLocationEnabled: true,
+                          myLocationButtonEnabled: false,
+                          zoomControlsEnabled: true,
+                          mapType: MapType.normal,
                         ),
                       ),
 
@@ -282,42 +323,34 @@ class _CurrentLocationMapState extends State<CurrentLocationMap>
                           width: 2.0,
                         ),
                       ),
-                      child: Center(
-
-                        child: SizedBox(
-                          height: 30,
-                          child: Row(
-
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              SizedBox(
-
-                                child: Image.asset(
-                                  "assets/loc_mark/loc_mark.png",
-                                  height: 50,
-                                  width: 40,
-                                ),height: 50,
-                                width: 50,
-                              ),
-
-                              //const SizedBox(height: 8),
-                              SingleChildScrollView(
-
-                                child: SizedBox(
-                                  height: 50,
-                                
-                                  child: Text(
-                                    _currentAddress!,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                      child: Row(
+                        children: [
+                          // Location icon
+                          Container(
+                            width: 40,
+                            height: 40,
+                            child: Image.asset(
+                              "assets/loc_mark/loc_mark.png",
+                              fit: BoxFit.contain,
+                            ),
                           ),
-                        ),
+                          
+                          SizedBox(width: 12),
+                          
+                          // Address text
+                          Expanded(
+                            child: Text(
+                              _currentAddress!,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.white,
+                                height: 1.3,
+                              ),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

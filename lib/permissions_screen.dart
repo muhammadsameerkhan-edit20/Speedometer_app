@@ -15,6 +15,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
     // Check GPS status when screen loads and start auto-refresh
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final gpsService = Provider.of<GpsStatusService>(context, listen: false);
+      gpsService.initialize(); // Initialize the service with lifecycle observer
       gpsService.checkAllStatuses();
       gpsService.startAutoRefresh();
     });
@@ -31,157 +32,146 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => GpsStatusService(),
-      child: Consumer<GpsStatusService>(
-        builder: (context, gpsService, child) {
-          return Scaffold(
-            backgroundColor: Colors.transparent,
-            appBar: AppBar(
-              backgroundColor: Color(0xff68DAE4),
-              elevation: 0,
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-              title: Text(
-                'GPS & Location Status',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+    return Consumer<GpsStatusService>(
+      builder: (context, gpsService, child) {
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            backgroundColor: Color(0xff68DAE4),
+            elevation: 0,
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text(
+              'GPS & Location Status',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+          body: Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF033438), Color(0xFF081214)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
               ),
             ),
-            body: Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF033438), Color(0xFF081214)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+            child: Column(
+              children: [
+                // Status Overview Card
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Color(0xff68DAE4)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            gpsService.isEverythingWorking 
+                              ? Icons.check_circle 
+                              : Icons.warning,
+                            color: gpsService.isEverythingWorking 
+                              ? Colors.green 
+                              : Colors.orange,
+                            size: 24,
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            gpsService.isEverythingWorking 
+                              ? "GPS Working" 
+                              : "GPS Issues Detected",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        gpsService.statusMessage,
+                        style: TextStyle(
+                          color: Colors.grey[300],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              child: Column(
-                children: [
-                  // Status Overview Card
-                  Container(
-                    padding: EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Color(0xff68DAE4)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              gpsService.isEverythingWorking 
-                                ? Icons.check_circle 
-                                : Icons.warning,
-                              color: gpsService.isEverythingWorking 
-                                ? Colors.green 
-                                : Colors.orange,
-                              size: 24,
-                            ),
-                            SizedBox(width: 12),
-                            Text(
-                              gpsService.isEverythingWorking 
-                                ? "GPS Working" 
-                                : "GPS Issues Detected",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          gpsService.statusMessage,
-                          style: TextStyle(
-                            color: Colors.grey[300],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
+                
+                SizedBox(height: 20),
+                
+                // GPS Status Card
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Color(0xff68DAE4)),
                   ),
-                  
-                  SizedBox(height: 20),
-                  
-                  // GPS Status Card
-                  Container(
-                    padding: EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Color(0xff68DAE4)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "GPS Status",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "GPS Status",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
-                        SizedBox(height: 16),
-                        
-                        // Location Services Status
-                        _buildStatusRow(
-                          "Location Services",
-                          gpsService.isLocationServiceEnabled,
-                          Icons.location_on,
-                          onTap: () => gpsService.openLocationSettings(),
-                        ),
-                        
-                        Divider(color: Colors.white24),
-                        
-                        // Location Permission Status
-                        _buildStatusRow(
-                          "Location Permission",
-                          gpsService.isLocationPermissionGranted,
-                          Icons.security,
-                          onTap: () => gpsService.requestLocationPermission(),
-                        ),
-                        
-                        Divider(color: Colors.white24),
-                        
-                        // GPS Signal Status
-                        _buildStatusRow(
-                          "GPS Signal",
-                          gpsService.isGpsEnabled,
-                          Icons.gps_fixed,
-                        ),
-                      ],
-                    ),
+                      ),
+                      SizedBox(height: 16),
+                      _buildStatusRow(
+                        "Location Services",
+                        gpsService.isLocationServiceEnabled,
+                        Icons.location_on,
+                        onTap: () => gpsService.openLocationSettings(),
+                      ),
+                      _buildStatusRow(
+                        "Location Permission",
+                        gpsService.isLocationPermissionGranted,
+                        Icons.security,
+                        onTap: () => gpsService.requestLocationPermission(),
+                      ),
+                      _buildStatusRow(
+                        "GPS Signal",
+                        gpsService.isGpsEnabled,
+                        Icons.gps_fixed,
+                      ),
+                    ],
                   ),
-                  
-                  SizedBox(height: 20),
-                  
-                  // Auto-Refresh Toggle
-                  Container(
-                    padding: EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Color(0xff68DAE4)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                ),
+                
+                SizedBox(height: 20),
+                
+                // Auto-Refresh Card
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Color(0xff68DAE4)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.refresh,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.refresh,
-                              color: Color(0xff68DAE4),
-                              size: 24,
-                            ),
-                            SizedBox(width: 12),
                             Text(
                               "Auto-Refresh",
                               style: TextStyle(
@@ -190,39 +180,37 @@ class _PermissionScreenState extends State<PermissionScreen> {
                                 fontSize: 16,
                               ),
                             ),
-                          ],
-                        ),
-                        SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                "Automatically refresh GPS status every 5 seconds",
-                                style: TextStyle(
-                                  color: Colors.grey[300],
-                                  fontSize: 14,
-                                ),
+                            Text(
+                              "Automatically refresh GPS status every 5 seconds",
+                              style: TextStyle(
+                                color: Colors.grey[300],
+                                fontSize: 12,
                               ),
                             ),
-                            Switch(
-                              value: gpsService.isAutoRefreshEnabled,
-                              onChanged: (value) => gpsService.toggleAutoRefresh(),
-                              activeColor: Color(0xff68DAE4),
-                            ),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                      Switch(
+                        value: gpsService.isAutoRefreshEnabled,
+                        onChanged: (value) => gpsService.toggleAutoRefresh(),
+                        activeColor: Color(0xff68DAE4),
+                      ),
+                    ],
                   ),
-                  
-                  SizedBox(height: 20),
-                  
-                  // Action Buttons
-                  if (!gpsService.isEverythingWorking) ...[
+                ),
+                
+                Spacer(),
+                
+                // Action Buttons
+                Column(
+                  children: [
                     Container(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () => gpsService.checkAllStatuses(),
+                        onPressed: () async {
+                          print("Manual refresh button pressed");
+                          await gpsService.testGpsStatus();
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xff68DAE4),
                           foregroundColor: Colors.black,
@@ -232,7 +220,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
                           ),
                         ),
                         child: Text(
-                          "Refresh Status",
+                          "Test GPS Status",
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -265,12 +253,12 @@ class _PermissionScreenState extends State<PermissionScreen> {
                       ),
                     ),
                   ],
-                ],
-              ),
+                ),
+              ],
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 

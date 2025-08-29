@@ -1,20 +1,47 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-class GpsStatusService extends ChangeNotifier {
+class GpsStatusService extends ChangeNotifier with WidgetsBindingObserver {
   bool _isGpsEnabled = false;
   bool _isLocationPermissionGranted = false;
   bool _isLocationServiceEnabled = false;
   String _statusMessage = "Checking GPS status...";
   Timer? _refreshTimer;
   bool _isAutoRefreshEnabled = true;
+  bool _isInitialized = false;
 
   bool get isGpsEnabled => _isGpsEnabled;
   bool get isLocationPermissionGranted => _isLocationPermissionGranted;
   bool get isLocationServiceEnabled => _isLocationServiceEnabled;
   String get statusMessage => _statusMessage;
+
+  // Initialize the service
+  void initialize() {
+    if (!_isInitialized) {
+      WidgetsBinding.instance.addObserver(this);
+      _isInitialized = true;
+      print("GPS Status Service initialized");
+      // Do an initial check
+      checkAllStatuses();
+    }
+  }
+
+  // Handle app lifecycle changes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    if (state == AppLifecycleState.resumed) {
+      // App came back to foreground, recheck all statuses with a slight delay
+      print("App resumed - rechecking GPS status");
+      Future.delayed(Duration(milliseconds: 500), () {
+        checkAllStatuses();
+      });
+    }
+  }
 
   // Check all GPS and location related statuses
   Future<void> checkAllStatuses() async {
@@ -30,10 +57,12 @@ class GpsStatusService extends ChangeNotifier {
   Future<void> _checkLocationService() async {
     try {
       _isLocationServiceEnabled = await Geolocator.isLocationServiceEnabled();
+      print("Location service enabled: $_isLocationServiceEnabled");
       if (!_isLocationServiceEnabled) {
         _statusMessage = "Location services are disabled. Please enable them in device settings.";
       }
     } catch (e) {
+      print("Error checking location service: $e");
       _statusMessage = "Error checking location services: $e";
     }
   }
@@ -43,6 +72,7 @@ class GpsStatusService extends ChangeNotifier {
     try {
       final status = await Permission.location.status;
       _isLocationPermissionGranted = status.isGranted;
+      print("Location permission granted: $_isLocationPermissionGranted (status: $status)");
       
       if (!_isLocationPermissionGranted) {
         if (status.isDenied) {
@@ -52,6 +82,7 @@ class GpsStatusService extends ChangeNotifier {
         }
       }
     } catch (e) {
+      print("Error checking location permission: $e");
       _statusMessage = "Error checking location permission: $e";
     }
   }
@@ -59,13 +90,18 @@ class GpsStatusService extends ChangeNotifier {
   // Check GPS status using Geolocator
   Future<void> _checkGpsStatus() async {
     try {
+      print("Checking GPS status - Location service: $_isLocationServiceEnabled, Permission: $_isLocationPermissionGranted");
+      
       if (_isLocationServiceEnabled && _isLocationPermissionGranted) {
         // Try to get current position to verify GPS is working
+        print("Attempting to get current position...");
         final position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
+          timeLimit: Duration(seconds: 15),
         );
         _isGpsEnabled = position != null;
+        print("GPS position obtained: $_isGpsEnabled, Position: $position");
+        
         if (_isGpsEnabled) {
           _statusMessage = "GPS is working properly!";
         } else {
@@ -73,6 +109,7 @@ class GpsStatusService extends ChangeNotifier {
         }
       } else {
         _isGpsEnabled = false;
+        print("GPS disabled - Location service: $_isLocationServiceEnabled, Permission: $_isLocationPermissionGranted");
         if (!_isLocationServiceEnabled) {
           _statusMessage = "Please enable location services first.";
         } else if (!_isLocationPermissionGranted) {
@@ -81,7 +118,14 @@ class GpsStatusService extends ChangeNotifier {
       }
     } catch (e) {
       _isGpsEnabled = false;
-      _statusMessage = "GPS error: $e";
+      print("GPS error: $e");
+      if (e.toString().contains('Location service is disabled')) {
+        _statusMessage = "Location services are disabled. Please enable them in device settings.";
+      } else if (e.toString().contains('Location permission denied')) {
+        _statusMessage = "Location permission denied. Please grant location permission.";
+      } else {
+        _statusMessage = "GPS error: $e";
+      }
     }
   }
 
@@ -103,9 +147,7 @@ class GpsStatusService extends ChangeNotifier {
   Future<void> openLocationSettings() async {
     try {
       await Geolocator.openLocationSettings();
-      // Recheck status after returning from settings
-      await Future.delayed(Duration(seconds: 1));
-      await checkAllStatuses();
+      // The status will be rechecked when app resumes via lifecycle observer
     } catch (e) {
       _statusMessage = "Error opening location settings: $e";
       notifyListeners();
@@ -115,10 +157,8 @@ class GpsStatusService extends ChangeNotifier {
   // Open app settings for permissions
   Future<void> openAppSettings() async {
     try {
-      await openAppSettings();
-      // Recheck status after returning from settings
-      await Future.delayed(Duration(seconds: 1));
-      await checkAllStatuses();
+      await Permission.location.request();
+      // The status will be rechecked when app resumes via lifecycle observer
     } catch (e) {
       _statusMessage = "Error opening app settings: $e";
       notifyListeners();
@@ -182,9 +222,30 @@ class GpsStatusService extends ChangeNotifier {
   // Get auto refresh status
   bool get isAutoRefreshEnabled => _isAutoRefreshEnabled;
 
+  // Manual test method for debugging
+  Future<void> testGpsStatus() async {
+    print("=== GPS Status Test ===");
+    print("Location service enabled: $_isLocationServiceEnabled");
+    print("Location permission granted: $_isLocationPermissionGranted");
+    print("GPS enabled: $_isGpsEnabled");
+    print("Status message: $_statusMessage");
+    
+    // Force a fresh check
+    await checkAllStatuses();
+    
+    print("=== After fresh check ===");
+    print("Location service enabled: $_isLocationServiceEnabled");
+    print("Location permission granted: $_isLocationPermissionGranted");
+    print("GPS enabled: $_isGpsEnabled");
+    print("Status message: $_statusMessage");
+  }
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    if (_isInitialized) {
+      WidgetsBinding.instance.removeObserver(this);
+    }
     super.dispose();
   }
 }

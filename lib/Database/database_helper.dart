@@ -21,7 +21,7 @@ class DatabaseHelper {
     final path = join(dbPath, 'tracking_history.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
   CREATE TABLE records (
@@ -30,7 +30,14 @@ class DatabaseHelper {
     averageSpeed REAL,
     topSpeed REAL,
     duration INTEGER,
-    timestamp TEXT
+    timestamp TEXT,
+    startAddress TEXT,
+    stopAddress TEXT,
+    stopTimestamp TEXT,
+    startLat REAL,
+    startLng REAL,
+    stopLat REAL,
+    stopLng REAL
   )
 ''');
 
@@ -44,6 +51,17 @@ class DatabaseHelper {
 
         // Insert default speed limit
         await db.insert('settings', {'key': 'speed_limit', 'value': '200'});
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('ALTER TABLE records ADD COLUMN startAddress TEXT');
+          await db.execute('ALTER TABLE records ADD COLUMN stopAddress TEXT');
+          await db.execute('ALTER TABLE records ADD COLUMN stopTimestamp TEXT');
+          await db.execute('ALTER TABLE records ADD COLUMN startLat REAL');
+          await db.execute('ALTER TABLE records ADD COLUMN startLng REAL');
+          await db.execute('ALTER TABLE records ADD COLUMN stopLat REAL');
+          await db.execute('ALTER TABLE records ADD COLUMN stopLng REAL');
+        }
       },
     );
   }

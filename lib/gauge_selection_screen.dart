@@ -65,14 +65,15 @@ class _GaugeSelectionScreenState extends State<GaugeSelectionScreen> {
       'description': 'Futuristic digital speedometer with frame',
       'widget': (double speed) => Container(
         height: 300,
-        child: DigitalSpeedometer(speed: speed, totalDistance: 0),
+        width: 300,
+        child: Center(
+          child: SizedBox(
+            width: 280,
+            height: 280,
+            child: DigitalSpeedometer(speed: speed, totalDistance: 0),
+          ),
+        ),
       ),
-    },
-    {
-      'name': 'Enhanced Gauge',
-      'description': 'Improved gauge with better styling',
-      'widget': (double speed) =>
-          Container(height: 300, child: CustomSpeedometerGauge(speed: speed)),
     },
     {
       'name': 'Enhanced Gauge',

@@ -189,16 +189,23 @@ class _SpeedometerScreenState extends State<SpeedometerScreen> {
         break;
 
       case 2: // Digital Speedometer
-        gaugeWidget = DigitalSpeedometer(
-          speed: _speed,
-          totalDistance: _distance,
+        gaugeWidget = Container(
+          height: 300,
+          width: 300,
+          child: Center(
+            child: SizedBox(
+              width: 280,
+              height: 280,
+              child: DigitalSpeedometer(
+                speed: _speed,
+                totalDistance: _distance,
+              ),
+            ),
+          ),
         );
         break;
 
       case 3: // Enhanced Gauge
-        gaugeWidget = CustomSpeedometerGauge(speed: _speed);
-        break;
-      case 4: // Enhanced Gauge
         gaugeWidget = Container(
           height: 300,
           child: SfRadialGauge(
@@ -351,18 +358,12 @@ class _SpeedometerScreenState extends State<SpeedometerScreen> {
                         child: _buildGauge(),
                       ),
                     ),
-                    // Small odometer overlay at center
+                    // Small odometer overlay at left bottom
                     Positioned(
-                      bottom: 10,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.8),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                      bottom: 20,
+                      left: 15,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -412,7 +413,6 @@ class _SpeedometerScreenState extends State<SpeedometerScreen> {
                           ],
                         ),
                       ),
-                    ),
                     ),
                   ],
                 ),

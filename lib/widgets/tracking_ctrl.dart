@@ -1,6 +1,8 @@
   import 'dart:async';
 
   import 'package:flutter/material.dart';
+  import 'package:geocoding/geocoding.dart';
+  import 'package:geolocator/geolocator.dart';
   import '../Database/database_helper.dart';
 
   import '../Model/tracking_history.dart';
@@ -19,6 +21,11 @@ import '../main.dart';
   class _TrackingControlsState extends State<TrackingControls> {
     final tracker = DistanceTracker();
     Timer? _uiTimer;
+
+    // Store start/stop info for the current session
+    double? _startLat;
+    double? _startLng;
+    String? _startAddress;
 
     @override
     void initState() {
@@ -43,6 +50,24 @@ import '../main.dart';
       return "$h:$m:$s";
     }
 
+    Future<String?> _reverseGeocode(double? lat, double? lng) async {
+      if (lat == null || lng == null) return null;
+      try {
+        final placemarks = await placemarkFromCoordinates(lat, lng);
+        if (placemarks.isEmpty) return null;
+        final p = placemarks.first;
+        final parts = <String?>[
+          p.subLocality?.isNotEmpty == true ? p.subLocality : null,
+          p.locality?.isNotEmpty == true ? p.locality : null,
+          p.administrativeArea?.isNotEmpty == true ? p.administrativeArea : null,
+          p.country?.isNotEmpty == true ? p.country : null,
+        ]..removeWhere((e) => e == null);
+        return parts.join(', ');
+      } catch (_) {
+        return null;
+      }
+    }
+
 
 
     @override
@@ -61,9 +86,37 @@ import '../main.dart';
               // Start Button – only show when not tracking and not paused
               if (!tracker.isTracking && !tracker.isPaused)
                 startButton(
-                  onStart: () {
+                  onStart: () async {
+                    try {
+                      // Capture start coords BEFORE starting the stream
+                      final pos = await Geolocator.getCurrentPosition(
+                        desiredAccuracy: LocationAccuracy.best,
+                        timeLimit: Duration(seconds: 20),
+                      );
+                      _startLat = pos.latitude;
+                      _startLng = pos.longitude;
+                      _startAddress = await _reverseGeocode(_startLat, _startLng);
+                    } catch (_) {
+                      // Fallbacks: last known, then tracker snapshot
+                      try {
+                        final last = await Geolocator.getLastKnownPosition();
+                        if (last != null) {
+                          _startLat = last.latitude;
+                          _startLng = last.longitude;
+                        } else {
+                          final pos = tracker.currentPosition;
+                          _startLat = pos?.latitude;
+                          _startLng = pos?.longitude;
+                        }
+                      } catch (_) {
+                        final pos = tracker.currentPosition;
+                        _startLat = pos?.latitude;
+                        _startLng = pos?.longitude;
+                      }
+                      _startAddress = await _reverseGeocode(_startLat, _startLng);
+                    }
                     tracker.startTracking();
-                    setState(() {});
+                    if (mounted) setState(() {});
                   },
 
                 ),
@@ -88,12 +141,25 @@ import '../main.dart';
                   onStart: () async {
                     tracker.stopTracking();
 
+                    final now = DateTime.now();
+                    final stopPos = tracker.currentPosition;
+                    // Ensure we have a start address before saving
+                    if (_startAddress == null && _startLat != null && _startLng != null) {
+                      _startAddress = await _reverseGeocode(_startLat, _startLng);
+                    }
                     final record = TrackingRecord(
                       distance: tracker.totalKm,
                       averageSpeed: tracker.averageSpeed,
                       topSpeed: tracker.topSpeed,
                       duration: tracker.elapsedTime,
-                      timestamp: DateTime.now(),
+                      timestamp: now.subtract(tracker.elapsedTime),
+                      stopTimestamp: now,
+                      startLat: _startLat,
+                      startLng: _startLng,
+                      startAddress: _startAddress,
+                      stopLat: stopPos?.latitude,
+                      stopLng: stopPos?.longitude,
+                      stopAddress: await _reverseGeocode(stopPos?.latitude, stopPos?.longitude),
                     );
 
                     await DatabaseHelper().insertRecord(record);

@@ -63,34 +63,17 @@ class _DigitalSpeedometerState extends State<DigitalSpeedometer>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Container(
-          width: 400,
-          height: 350,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: const Color(0xFF7FDBFF),
-              width: 2,
-            ),
-            color: const Color(0xFF1A1A1A),
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return CustomPaint(
+          size: const Size(280, 280),
+          painter: DigitalSpeedometerPainter(
+            speed: _animation.value,
+            totalDistance: widget.totalDistance,
           ),
-          child: AnimatedBuilder(
-            animation: _animation,
-            builder: (context, child) {
-              return CustomPaint(
-                size: const Size(400, 350),
-                painter: DigitalSpeedometerPainter(
-                  speed: _animation.value,
-                  totalDistance: widget.totalDistance,
-                ),
-              );
-            },
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -106,8 +89,9 @@ class DigitalSpeedometerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height * 0.6);
-    final radius = size.width * 0.3;
+    // Move the gauge a bit more upward
+    final center = Offset(size.width / 2, size.height * 0.46);
+    final radius = size.width * 0.35;
 
     // Draw the gauge arc
     _drawGaugeArc(canvas, center, radius);
@@ -118,20 +102,17 @@ class DigitalSpeedometerPainter extends CustomPainter {
     // Draw labels
     _drawLabels(canvas, center, radius);
     
-    // Draw highlight circles
-    _drawHighlightCircles(canvas, center, radius);
+    // Removed highlight circles around digits for a cleaner look
     
     // Draw needle
     _drawNeedle(canvas, center, radius);
     
-    // Draw digital display
+    // Draw digital display (adjusted center '0' closer to needle hub)
     _drawDigitalDisplay(canvas, center);
     
-    // Draw odometer
-    _drawOdometer(canvas, size);
+    // Odometer removed per design request
     
-    // Draw additional elements
-    _drawAdditionalElements(canvas, size);
+    // Removed extra decorative elements
   }
 
   void _drawGaugeArc(Canvas canvas, Offset center, double radius) {
@@ -218,34 +199,14 @@ class DigitalSpeedometerPainter extends CustomPainter {
       textPainter.layout();
 
       final labelOffset = Offset(
-        center.dx + (radius + 25) * math.cos(angle) - textPainter.width / 2,
-        center.dy + (radius + 25) * math.sin(angle) - textPainter.height / 2,
+        center.dx + (radius + 20) * math.cos(angle) - textPainter.width / 2,
+        center.dy + (radius + 20) * math.sin(angle) - textPainter.height / 2,
       );
       textPainter.paint(canvas, labelOffset);
     }
   }
 
-  void _drawHighlightCircles(Canvas canvas, Offset center, double radius) {
-    final positions = [
-      (math.pi, const Color(0xFF7FDBFF)),
-      (math.pi / 2, const Color(0xFF7FDBFF)),
-      (0, const Color(0xFF7FDBFF)),
-    ];
-
-    for (final (angle, color) in positions) {
-      final circleCenter = Offset(
-        center.dx + (radius + 18) * math.cos(angle),
-        center.dy + (radius + 18) * math.sin(angle),
-      );
-
-      // Draw glowing circle
-      final glowPaint = Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-      canvas.drawCircle(circleCenter, 8, glowPaint);
-    }
-  }
+  void _drawHighlightCircles(Canvas canvas, Offset center, double radius) {}
 
   void _drawNeedle(Canvas canvas, Offset center, double radius) {
     final speedAngle = math.pi - (speed / 240) * math.pi;
@@ -257,7 +218,7 @@ class DigitalSpeedometerPainter extends CustomPainter {
     
     final needlePath = Path();
     final needleLength = radius * 0.7;
-    final needleWidth = 8;
+    final needleWidth = 6;
     
     final needleTip = Offset(
       center.dx + needleLength * math.cos(speedAngle),
@@ -287,13 +248,13 @@ class DigitalSpeedometerPainter extends CustomPainter {
     final hubPaint = Paint()
       ..color = Colors.black
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 15, hubPaint);
+    canvas.drawCircle(center, 12, hubPaint);
     
     final hubBorderPaint = Paint()
       ..color = const Color(0xFF7FDBFF)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawCircle(center, 15, hubBorderPaint);
+      ..strokeWidth = 2;
+    canvas.drawCircle(center, 12, hubBorderPaint);
   }
 
   void _drawDigitalDisplay(Canvas canvas, Offset center) {
@@ -314,9 +275,10 @@ class DigitalSpeedometerPainter extends CustomPainter {
     );
     speedTextPainter.layout();
 
+    // Place numeric readout exactly at the circle center
     final speedOffset = Offset(
       center.dx - speedTextPainter.width / 2,
-      center.dy - speedTextPainter.height / 2 - 5,
+      center.dy - speedTextPainter.height / 2,
     );
     speedTextPainter.paint(canvas, speedOffset);
 
@@ -337,74 +299,17 @@ class DigitalSpeedometerPainter extends CustomPainter {
     );
     unitTextPainter.layout();
 
+    // Position KM/H label just below the centered number
     final unitOffset = Offset(
       center.dx - unitTextPainter.width / 2,
-      center.dy + speedTextPainter.height / 2 + 5,
+      center.dy + speedTextPainter.height / 2 + 4,
     );
     unitTextPainter.paint(canvas, unitOffset);
   }
 
-  void _drawOdometer(Canvas canvas, Size size) {
-    final odometerY = size.height * 0.85;
-    
-    // Draw odometer reading
-    final odometerTextStyle = TextStyle(
-      color: Colors.white,
-      fontSize: 18,
-      fontWeight: FontWeight.bold,
-    );
+  void _drawOdometer(Canvas canvas, Size size) {}
 
-    final odometerTextSpan = TextSpan(
-      text: totalDistance.toInt().toString().padLeft(5, '0'),
-      style: odometerTextStyle,
-    );
-    final odometerTextPainter = TextPainter(
-      text: odometerTextSpan,
-      textDirection: TextDirection.ltr,
-    );
-    odometerTextPainter.layout();
-
-    final odometerOffset = Offset(
-      size.width / 2 - odometerTextPainter.width / 2,
-      odometerY - odometerTextPainter.height / 2,
-    );
-    odometerTextPainter.paint(canvas, odometerOffset);
-
-    // Draw km label
-    final kmTextStyle = TextStyle(
-      color: Colors.white,
-      fontSize: 12,
-      fontWeight: FontWeight.w500,
-    );
-
-    final kmTextSpan = TextSpan(
-      text: "km",
-      style: kmTextStyle,
-    );
-    final kmTextPainter = TextPainter(
-      text: kmTextSpan,
-      textDirection: TextDirection.ltr,
-    );
-    kmTextPainter.layout();
-
-    final kmOffset = Offset(
-      size.width / 2 - kmTextPainter.width / 2,
-      odometerY + odometerTextPainter.height / 2 + 5,
-    );
-    kmTextPainter.paint(canvas, kmOffset);
-  }
-
-  void _drawAdditionalElements(Canvas canvas, Size size) {
-    // Draw small circular outline in bottom right
-    final circleCenter = Offset(size.width * 0.85, size.height * 0.85);
-    
-    final circlePaint = Paint()
-      ..color = const Color(0xFF7FDBFF)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    
-    canvas.drawCircle(circleCenter, 8, circlePaint);
-  }
+  void _drawAdditionalElements(Canvas canvas, Size size) {}
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'botom_nav_bar.dart';
 import 'theme/theme_provider.dart';
+import 'Services/gps_status_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,8 +19,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(
+          create: (_) {
+            final gpsService = GpsStatusService();
+            gpsService.initialize();
+            return gpsService;
+          },
+        ),
+      ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp(
